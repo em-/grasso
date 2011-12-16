@@ -1,0 +1,5 @@
+- Currently *very* lightly tested, do something more serious
+- Fill the missing pieces for FAT12/FAT16 support
+- Add automated tests
+- ...
+- Profit!
