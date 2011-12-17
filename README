@@ -2,9 +2,21 @@ Grasso - a FAT filesystem parser written in Python
 ==================================================
 
 This is a toy FAT filesystem parser which depends only on the standard
-library mostly written to scratch an itch.
+library.
+
+It was mostly written to scratch an itch, so don't expect it to work in
+any serious manner.
 
 The code is released under a MIT-style license, feel free to improve it.
+
+Usage
+-----
+
+    import grasso
+    image = open('fs.img', 'rb')
+    fs = grasso.FATFileSystem(image)
+    print [f.name for f in fs.root.files]
+    print fs['/foo/bar'].read()
 
 -- 
 Emanuele Aina <em@nerd.ocracy.org>
