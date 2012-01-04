@@ -259,7 +259,7 @@ class RootEntry(PathEntry):
 
     @property
     def name(self):
-        return '/'
+        return ''
 
 class DeletedEntry(DirectoryEntry):
     pass

@@ -17,8 +17,9 @@ from .fat16 import ExtendedBIOSParameterBlock16
 from .fat32 import ExtendedBIOSParameterBlock32, FileSystemInformationSector32, FAT32
 
 class Directory(FragmentedIO):
-    def __init__(self, filesystem, entry):
+    def __init__(self, filesystem, parent, entry):
         self.filesystem = filesystem
+        self.parent = parent
         self.entry = entry
         self.clusters = list(filesystem.fat.get_chain(entry.first_cluster_number))
         fragments = filesystem.get_chain_items(self.clusters)
@@ -49,6 +50,16 @@ class Directory(FragmentedIO):
     @property
     def name(self):
         return self.entry.name
+
+    @property
+    def path(self):
+        items = []
+        i = self.parent
+        while i:
+            items.insert(0, i)
+            i = i.parent
+        items.append(self)
+        return '/'.join([i.name for i in items])
 
     @property
     def files(self):
@@ -83,27 +94,35 @@ class Directory(FragmentedIO):
 
     def __iter__(self):
         for d in self.directories:
-            yield Directory(self.filesystem, d)
+            yield Directory(self.filesystem, self, d)
         for f in self.files:
-            yield File(self.filesystem, f)
+            yield File(self.filesystem, self, f)
 
     def __getitem__(self, name):
         entry = self.get_entry(name)
-        t = type(entry)
-        if t is SubdirectoryEntry:
-            item = Directory(self.filesystem, entry)
-        if t is FileEntry:
-            item = File(self.filesystem, entry)
+        if isinstance(entry, SubdirectoryEntry):
+            item = Directory(self.filesystem, self, entry)
+        elif isinstance(entry, FileEntry):
+            item = File(self.filesystem, self, entry)
+        else:
+            item = None
         return item
 
     def get_entry(self, name):
         for e in self.entries:
-            t = type(e)
-            if t is not FileEntry and t is not SubdirectoryEntry:
+            if not isinstance(e, PathEntry):
                 continue
             if e.name.lower() == name.lower():
                 return e
         return None
+
+    def walk(self):
+        items = list(self)
+        while items:
+            item = items.pop(0)
+            yield item
+            if type(item) is Directory:
+                items.extend([i for i in item if i.name not in ('..   ', '...   ')])
 
     def __repr__(self):
         return "Directory(\n"           \
@@ -123,8 +142,9 @@ class Directory(FragmentedIO):
             )
 
 class File(FragmentedIO):
-    def __init__(self, filesystem, entry):
+    def __init__(self, filesystem, parent, entry):
         self.filesystem = filesystem
+        self.parent = parent
         self.entry = entry
         self.clusters = list(filesystem.fat.get_chain(entry.first_cluster_number))
         fragments = filesystem.get_chain_items(self.clusters)
@@ -135,11 +155,21 @@ class File(FragmentedIO):
     def name(self):
         return self.entry.name
 
+    @property
+    def path(self):
+        items = []
+        i = self.parent
+        while i:
+            items.insert(0, i)
+            i = i.parent
+        items.append(self)
+        return '/'.join([i.name for i in items])
+
     def __repr__(self):
-        return "File(\n"           \
-            " clusters=%s,\n"           \
-            " size=%d,\n"               \
-            " name='%s',\n"             \
+        return "File(\n"        \
+            " clusters=%s,\n"   \
+            " size=%d,\n"       \
+            " name='%s',\n"     \
             ")" % (
             self.clusters,
             self.size,
@@ -158,7 +188,7 @@ class FATFileSystem(object):
             self.file_system_information_sector = FileSystemInformationSector32(self)
             fd.seek(b.reserved_sector_count * b.bytes_per_sector)
             self.fat = FAT32(self, ebpb.sector_per_fat * b.bytes_per_sector)
-            self.root = Directory(self, RootEntry(self))
+            self.root = Directory(self, None, RootEntry(self))
         else:
             self.extended_bios_parameter_block = ExtendedBIOSParameterBlock16(self)
             raise NotImplementedError('Sorry, FAT12/16 support not yet finished')
@@ -193,17 +223,12 @@ class FATFileSystem(object):
         item = self.root
         curr, sep, tail = path.lstrip('/').partition('/')
         while curr:
-            entry = item.get_entry(curr)
-            t = type(entry)
-            if not entry:
+            item = item[curr]
+            if not item:
                 raise IOError('file "'+path+'" not found')
-            if sep and t is not SubdirectoryEntry:
+            if sep and not isinstance(item, Directory):
                 raise IOError('file "'+path+'" not found')
             curr, sep, tail = tail.partition('/')
-            if t is SubdirectoryEntry:
-                item = Directory(self, entry)
-            if t is FileEntry:
-                item = File(self, entry)
         return item
 
     def __str__(self):
