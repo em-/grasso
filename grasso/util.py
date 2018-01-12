@@ -19,7 +19,7 @@ class FragmentInfo(object):
         self.chain_offset_end = chain_offset + size
 
     def in_range(self, start, end):
-        return self.chain_offset_start <= start and end <= self.chain_offset_end
+        return self.chain_offset_start <= end and start <= self.chain_offset_end
 
     def __repr__(self):
         return 'FragmentInfo(number=%d, offset=%d, size=%d, chain_offset_start=%s, chain_offset_end=%d)' % (self.number, self.offset, self.size, self.chain_offset_start, self.chain_offset_end)
