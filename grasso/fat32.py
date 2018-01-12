@@ -120,7 +120,7 @@ class FAT32(object):
         self.bad_clusters = {}
         entries = self.length/4
         for i in range(2, entries):
-            v = unpack('<I', source.read(4))[0]
+            v = unpack('<I', source.read(4))[0] & 0x0FFFFFFF
             if not v:
                 continue
             if 0x00000002 <= v and v <= 0x0FFFFFEF:
